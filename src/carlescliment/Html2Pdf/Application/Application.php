@@ -12,7 +12,7 @@ use Knp\Snappy\Pdf;
 class Application extends SilexApplication
 {
     private $rootDir;
-
+    private $validSizes;
 
     public function __construct($root_dir, $debug = false)
     {
@@ -21,6 +21,10 @@ class Application extends SilexApplication
         $this->setDebugMode($debug);
         $this->initializeDependencies();
         $this->bindControllers();
+        $this->validSizes = array(
+            'A4',
+            'A3'
+        );
     }
 
     private function setDebugMode($debug)
@@ -55,6 +59,20 @@ class Application extends SilexApplication
         };
     }
 
+    private function setOptions($options)
+    {
+        $defaults = array(
+            'page-size' => 'A4',
+            'encoding' => 'UTF-8'
+        );
+
+        $options = array_merge($defaults, $options);
+
+        $this['default_options'] = function() {
+            return $options;
+        };
+    }
+
 
     private function bindControllers()
     {
@@ -69,6 +87,24 @@ class Application extends SilexApplication
 
 
         $this->put('/{resource}', function (SilexApplication $app, Request $request, $resource) {
+            $content = $request->get('content');
+            try {
+                $this['pdf_generator']->generate($resource, $content);
+            }
+            catch (DocumentAlreadyExistsException $e)
+            {
+                return $app->json(array('body' => $e->getMessage()), 409);
+            }
+            return $app->json(array('body' => 'ok'));
+        });
+
+        $this->put('/{size}/{resource}', function (SilexApplication $app, Request $request, $size, $resource) {
+            if(!in_array($size, $this->validSizes)) {
+                return $app->json(array('body' => "Invalid size", 400);
+            }else {
+                $this->setOptions(array('page-size' => $size));
+            }
+
             $content = $request->get('content');
             try {
                 $this['pdf_generator']->generate($resource, $content);
